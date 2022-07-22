@@ -1,0 +1,9 @@
+{
+	"author": ["Your-Benefactor"],
+	"description": "Automatically assign and remove a role to members that have sent a message recently.",
+	"install_msg": "Your-Benefactor's ActiveRole cog added. Use [p]help actverole to see how to configure it.",
+	"short": "Give a role to active members.",
+	"end_user_data_statement": "This stores cog and server-specific settngs.",
+	"disabled": false,
+	"required_cogs": []
+}
