@@ -113,7 +113,7 @@ class ActiveRole(commands.Cog):
 	@active_role.command(name="list")
 	async def list(self, ctx: commands.Context):
 		"""Generate list of currently active members."""
-		members = await self._active_members(ctx)
+		members = await self._active_members(ctx.guild)
 		message = "There are currently " + str(len(members)) + " active members."
 		for member in members:
 			message += "\n\t" + member.name
