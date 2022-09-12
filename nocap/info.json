@@ -1,0 +1,9 @@
+{
+	"author": ["Your-Benefactor"],
+	"description": "Respond to specific members that type in all capitals.",
+	"install_msg": "Your-Benefactor's NoCap cog added. Use [p]help nocap to see how to configure it.",
+	"short": "Respond to specific members that type in all capitals.",
+	"end_user_data_statement": "This stores server-specific settngs.",
+	"disabled": false,
+	"required_cogs": []
+}
