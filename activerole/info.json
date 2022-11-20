@@ -5,5 +5,5 @@
 	"short": "Give a role to active members.",
 	"end_user_data_statement": "This stores cog and server-specific settngs.",
 	"disabled": false,
-	"required_cogs": []
+	"required_cogs": {}
 }
