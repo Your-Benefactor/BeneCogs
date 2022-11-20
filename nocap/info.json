@@ -5,5 +5,5 @@
 	"short": "Respond to specific members that type in all capitals.",
 	"end_user_data_statement": "This stores server-specific settngs.",
 	"disabled": false,
-	"required_cogs": []
+	"required_cogs": {}
 }
