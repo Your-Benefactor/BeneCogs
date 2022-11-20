@@ -2,7 +2,6 @@ from redbot.core import Config, commands, bot
 from discord.ext import tasks
 import datetime, inspect
 
-
 _COG_IDENTIFIER = 37619525 # I just randomly generated this.
 _DEFAULT_RATE = 30
 
@@ -64,13 +63,12 @@ class ActiveRole(commands.Cog):
 		added = 0
 		removed = 0
 		for member in guild.members:
-			if(role not in member.roles):
-				if(member in active_members):
-					await member.add_roles(role, reason="Added by ActiveRole cog for being active in the last " + str(await self.config.guild(guild).days()) + " days")
-					added += 1
-				elif(role in member.roles):
-					await member.remove_roles(role, reason="Removed by ActiveRole cog for being inactive in the last " + str(await self.config.guild(guild).days()) + " days")
-					removed += 1
+			if(member in active_members and role not in member.roles):
+				await member.add_roles(role, reason="Added by ActiveRole cog for being active in the last " + str(await self.config.guild(guild).days()) + " days")
+				added += 1
+			elif(role in member.roles):
+				await member.remove_roles(role, reason="Removed by ActiveRole cog for being inactive in the last " + str(await self.config.guild(guild).days()) + " days")
+				removed += 1
 		await self._log("Added role to " + str(added) + " and removed from " + str(removed) + " members on " + guild.name + ".")
 
 	@tasks.loop(seconds=_DEFAULT_RATE)
