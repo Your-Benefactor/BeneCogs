@@ -1,6 +1,7 @@
 from redbot.core import Config, commands, bot
 from discord.ext import tasks
-import datetime, inspect
+from typing import List 
+import discord, datetime, inspect
 
 _COG_IDENTIFIER = 37619525 # I just randomly generated this.
 _DEFAULT_RATE = 30
@@ -39,7 +40,7 @@ class ActiveRole(commands.Cog):
 		if(await self.config.spew()):
 			print("[" + str(datetime.datetime.now().time()) + "] ActiveRole." + inspect.stack()[1].function + "(): " + message)
 
-	async def _active_members(self, guild):
+	async def _active_members(self, guild: discord.Guild) -> List[discord.Member]:
 		active_members = []
 		after = datetime.datetime.utcnow() - datetime.timedelta(days=int(await self.config.guild(guild).days())) # Using utcnow because it needs to be timezone-naive representing UTC time.
 		members = [member for member in guild.members if not member.bot]
@@ -57,19 +58,16 @@ class ActiveRole(commands.Cog):
 		await self._log("Found " + str(len(active_members)) + " active members in " + guild.name + ".")
 		return active_members # TODO: Cache?
 
-	async def _update(self, guild):
-		role = guild.get_role(await self.config.guild(guild).role())
+	async def _update(self, guild: discord.Guild):
+		role: discord.Role = guild.get_role(await self.config.guild(guild).role())
 		active_members = await self._active_members(guild)
-		added = 0
-		removed = 0
-		for member in guild.members:
-			if(member in active_members and role not in member.roles):
-				await member.add_roles(role, reason="Added by ActiveRole cog for being active in the last " + str(await self.config.guild(guild).days()) + " days")
-				added += 1
-			elif(role in member.roles):
-				await member.remove_roles(role, reason="Removed by ActiveRole cog for being inactive in the last " + str(await self.config.guild(guild).days()) + " days")
-				removed += 1
-		await self._log("Added role to " + str(added) + " and removed from " + str(removed) + " members on " + guild.name + ".")
+		newly_active_members = set(active_members).difference(role.members)
+		newly_inactive_members = set(role.members).difference(active_members)
+		for member in newly_active_members:
+			await member.add_roles(role, reason="Added by ActiveRole cog for being active in the last " + str(await self.config.guild(guild).days()) + " days")
+		for member in newly_inactive_members:
+			await member.remove_roles(role, reason="Removed by ActiveRole cog for being inactive in the last " + str(await self.config.guild(guild).days()) + " days")
+		await self._log("Added role to " + str(len(newly_active_members)) + " and removed from " + str(len(newly_inactive_members)) + " members on " + guild.name + ".")
 
 	@tasks.loop(seconds=_DEFAULT_RATE)
 	async def _loop(self):
