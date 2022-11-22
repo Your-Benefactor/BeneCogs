@@ -1,7 +1,7 @@
 from redbot.core import Config, commands, bot
 from discord.ext import tasks
 from typing import List 
-import discord, datetime, inspect
+import discord, datetime, inspect, asyncio
 
 _COG_IDENTIFIER = 37619525 # I just randomly generated this.
 _DEFAULT_RATE = 30
@@ -37,26 +37,26 @@ class ActiveRole(commands.Cog):
 
 	async def _log(self, message: str):
 		'''Print message with debug info to Redbot's stdout if spew is enabled.'''
-		if(await self.config.spew()):
+		if await self.config.spew():
 			print("[" + str(datetime.datetime.now().time()) + "] ActiveRole." + inspect.stack()[1].function + "(): " + message)
 
 	async def _active_members(self, guild: discord.Guild) -> List[discord.Member]:
 		active_members = []
 		after = datetime.datetime.utcnow() - datetime.timedelta(days=int(await self.config.guild(guild).days())) # Using utcnow because it needs to be timezone-naive representing UTC time.
 		members = [member for member in guild.members if not member.bot]
-		channels = [channel for channel in guild.text_channels if channel.id not in await self.config.guild(guild).ignored_channels()]
-		for channel in channels:
-			#await self._log("Searching channel " + str(channel.id) + " (" + channel.name + ") for messages from " + str(len(members)) + " remaining members.")
+
+		async def search_channel(channel):
 			async for message in channel.history(limit=None, after=after, oldest_first=False):
-				for member in members:
-					if(member == message.author):
-						active_members.append(member)
-						members.remove(member)
-						break
-				if(len(members) == 0):
-					break
+				if message.author in members:
+					members.remove(message.author)
+					active_members.append(message.author)
+				if len(members) == 0:
+					return
+
+		tasks = [search_channel(channel) for channel in guild.text_channels if channel.id not in await self.config.guild(guild).ignored_channels()]
+		await asyncio.gather(*tasks)
 		await self._log("Found " + str(len(active_members)) + " active members in " + guild.name + ".")
-		return active_members # TODO: Cache?
+		return active_members
 
 	async def _update(self, guild: discord.Guild):
 		role: discord.Role = guild.get_role(await self.config.guild(guild).role())
@@ -72,7 +72,7 @@ class ActiveRole(commands.Cog):
 	@tasks.loop(seconds=_DEFAULT_RATE)
 	async def _loop(self):
 		for guild in self.bot.guilds:
-			if(await self.config.guild(guild).enabled()):
+			if await self.config.guild(guild).enabled():
 				await self._log("Automatically updating guild " + guild.name + ".")
 				await self._update(guild)
 
@@ -83,7 +83,7 @@ class ActiveRole(commands.Cog):
 	async def rate(self, ctx: commands.Context, rate: int=None):
 		"""Get or set how many minutes ActiveRole should update the active role on all guilds."""
 		async with ctx.channel.typing():
-			if(type(rate) == int):
+			if type(rate) == int:
 				await self.config.rate.set(rate)
 				self._loop.change_interval(minutes=rate)
 				await ctx.send("ActiveRole now updates every " + str(rate) + " minutes.")
@@ -95,7 +95,7 @@ class ActiveRole(commands.Cog):
 	async def spew(self, ctx: commands.Context, enabled: bool=None):
 		"""Get or set whether ActiveRole should print debug info in the Redbot stdout."""
 		async with ctx.channel.typing():
-			if(type(enabled) == bool):
+			if type(enabled) == bool:
 				await self.config.spew.set(enabled)
 				await ctx.send("ActiveRole spew is now " + ("enabled" if enabled else "disabled") + ".")
 			else:
@@ -113,7 +113,7 @@ class ActiveRole(commands.Cog):
 	async def enabled(self, ctx: commands.Context, enabled: bool=None):
 		"""Get or set whether ActiveRole is enabled."""
 		async with ctx.channel.typing():
-			if(type(enabled) == bool):
+			if type(enabled) == bool:
 				await self.config.guild(ctx.guild).enabled.set(enabled)
 				await ctx.send("ActiveRole is now " + ("enabled" if enabled else "disabled") + ".")
 			else:
@@ -124,11 +124,11 @@ class ActiveRole(commands.Cog):
 	async def role(self, ctx: commands.Context, role: int=None):
 		"""Get or set the active role's ID."""
 		async with ctx.channel.typing():
-			if(type(role) == int):
+			if type(role) == int:
 				await self.config.guild(ctx.guild).role.set(role)
 				await ctx.send("ActiveRole's active role ID is now " + str(role) + " (" + ctx.guild.get_role(await self.config.guild(ctx.guild).role()).name + ").")
 			else:
-				if(await self.config.guild(ctx.guild).role() is None):
+				if await self.config.guild(ctx.guild).role() is None:
 					await ctx.send("ActiveRole's active role ID is currently unset.")
 				else:
 					await ctx.send("ActiveRole's active role ID is currently " + str(await self.config.guild(ctx.guild).role()) + " (" + ctx.guild.get_role(await self.config.guild(ctx.guild).role()).name + ").")
@@ -138,7 +138,7 @@ class ActiveRole(commands.Cog):
 	async def days(self, ctx: commands.Context, days: int=None):
 		"""Get or set the max span of days since messaging allowed for a user to have the active role."""
 		async with ctx.channel.typing():
-			if(type(days) == int):
+			if type(days) == int:
 				await self.config.guild(ctx.guild).days.set(days)
 				await ctx.send("ActiveRole's max span of days is now set to " + str(days) + ".")
 			else:
@@ -152,7 +152,7 @@ class ActiveRole(commands.Cog):
 			members = await self._active_members(ctx.guild)
 			message = "There are currently " + str(len(members)) + " active members."
 			for member in members:
-				if(member.nick is None):
+				if member.nick is None:
 					message += "\n\t" + member.name
 				else:
 					message += "\n\t" + member.nick + " (" + member.name + ")"
@@ -186,11 +186,11 @@ class ActiveRole(commands.Cog):
 	async def ignored_channels_add(self, ctx: commands.Context, channel: int):
 		"""Add a channel ID to the list to ignore."""
 		async with ctx.channel.typing():
-			if(ctx.guild.get_channel(channel) is None):
+			if ctx.guild.get_channel(channel) is None:
 				await ctx.send(str(channel) + " isn't a valid channel ID.")
 				return
 			async with self.config.guild(ctx.guild).ignored_channels() as channels:
-				if(channel in channels):
+				if channel in channels:
 					await ctx.send(str(channel) + " (" + ctx.guild.get_channel(channel).name + ") is already being ignored.")
 					return
 				channels.append(channel)
@@ -201,7 +201,7 @@ class ActiveRole(commands.Cog):
 	async def ignored_channels_remove(self, ctx: commands.Context, channel: int):
 		"""Remove a channel ID from the list to ignore."""
 		async with ctx.channel.typing():
-			if(ctx.guild.get_channel(channel) is None):
+			if ctx.guild.get_channel(channel) is None:
 				await ctx.send(str(channel) + " isn't a valid channel ID.")
 				return
 			async with self.config.guild(ctx.guild).ignored_channels() as channels:
