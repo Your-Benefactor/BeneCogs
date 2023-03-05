@@ -41,11 +41,13 @@ class ActiveRole(commands.Cog):
 			print("[" + str(datetime.datetime.now().time()) + "] ActiveRole." + inspect.stack()[1].function + "(): " + message)
 
 	async def _active_members(self, guild: discord.Guild) -> List[discord.Member]:
+		await self._log("Searching for active members in " + guild.name + ".")
 		active_members = []
 		after = datetime.datetime.utcnow() - datetime.timedelta(days=int(await self.config.guild(guild).days())) # Using utcnow because it needs to be timezone-naive representing UTC time.
 		members = [member for member in guild.members if not member.bot]
 
-		async def search_channel(channel):
+		async def search_channel(channel: discord.TextChannel):
+			await self._log("Searching channel " + str(channel.id) + " (" + channel.name + ") for messages from " + str(len(members)) + " remaining members.")
 			async for message in channel.history(limit=None, after=after, oldest_first=False):
 				if message.author in members:
 					members.remove(message.author)
@@ -53,7 +55,7 @@ class ActiveRole(commands.Cog):
 				if len(members) == 0:
 					return
 
-		tasks = [search_channel(channel) for channel in guild.text_channels if channel.id not in await self.config.guild(guild).ignored_channels()]
+		tasks = [search_channel(channel) for channel in guild.text_channels if channel.id not in await self.config.guild(guild).ignored_channels() and channel.permissions_for(guild.me).read_message_history]
 		await asyncio.gather(*tasks)
 		await self._log("Found " + str(len(active_members)) + " active members in " + guild.name + ".")
 		return active_members
